@@ -6,16 +6,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
-VM="${DEFI_VM:-defi-e2e}"
-# shellcheck source=script/vm_session.sh
-source "$ROOT_DIR/script/vm_session.sh"
-command -v tart >/dev/null || { echo "Install Tart first: https://tart.run" >&2; exit 2; }
+# shellcheck source=script/vm.sh
+source "$ROOT_DIR/script/vm.sh"
 FILTER="${1:-DesktopE2ETests}"
 [[ "$FILTER" == DesktopE2ETests* ]] || { echo "Filter must start with DesktopE2ETests" >&2; exit 2; }
-tart get "$VM" >/dev/null || {
-  echo "Create the VM first: tart clone ghcr.io/cirruslabs/macos-golden-gate-base:latest $VM && tart set $VM --cpu 4 --memory 4096" >&2
-  exit 2
-}
 
 # Build before queueing. Concurrent runs would share one guest desktop, and one could stop the VM under another.
 if [[ -z "${DEFI_VM_LOCKED:-}" ]]; then
@@ -25,12 +19,12 @@ if [[ -z "${DEFI_VM_LOCKED:-}" ]]; then
     clang -fobjc-arc -w -framework Foundation -framework AppKit -framework CoreGraphics \
       Tests/Fixtures/VirtualDisplayFixture.m -o .build/desktop-fixtures/DefiVirtualDisplay
   fi
-  export DEFI_VM_LOCKED=1
-  exec lockf -k "$HOME/.tart/$VM.lock" "$ROOT_DIR/script/test_vm.sh" "$@"
+  vm_lock "$ROOT_DIR/script/test_vm.sh" "$@"
 fi
 
 vm_start
 
+vm 'mkdir -p ~/defi-e2e'
 COPYFILE_DISABLE=1 tar -C .build/debug -cf - DefiMacOSTests.xctest $(cd .build/debug && ls -d ./*.bundle 2>/dev/null) | vm 'tar -C ~/defi-e2e -xf -'
 vm 'cat > ~/defi-e2e/fixture && chmod +x ~/defi-e2e/fixture' < .build/desktop-fixtures/DefiDesktopFocusFixture
 # The daemon lane runs the real daemon beside its resource bundles; a rewritten inode keeps a stale signature.

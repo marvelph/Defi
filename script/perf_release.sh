@@ -9,11 +9,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
-VM="${DEFI_VM:-defi-e2e}"
-# shellcheck source=script/vm_session.sh
-source "$ROOT_DIR/script/vm_session.sh"
-command -v tart >/dev/null || { echo "Install Tart first: https://tart.run" >&2; exit 2; }
-tart get "$VM" >/dev/null || { echo "Create the $VM VM first; see CONTRIBUTING.md" >&2; exit 2; }
+# shellcheck source=script/vm.sh
+source "$ROOT_DIR/script/vm.sh"
 ROUNDS="${DEFI_PERF_ROUNDS:-5}"
 NAVIGATIONS="${DEFI_PERF_NAVIGATIONS:-120}" # the daemon keeps the latest 120 samples per metric
 WINDOWS=6
@@ -52,8 +49,7 @@ if [[ -z "${DEFI_VM_LOCKED:-}" ]]; then
     --argjson rounds "$ROUNDS" --argjson navigations "$NAVIGATIONS" --argjson windows "$WINDOWS" \
     '{builds: $builds, vm: $vm, host: $host, rounds: $rounds, navigations: $navigations, windows: $windows}' \
     > "$run/meta.json"
-  export DEFI_VM_LOCKED=1
-  exec lockf -k "$HOME/.tart/$VM.lock" "$ROOT_DIR/script/perf_release.sh" "$run" "${labels[@]}"
+  vm_lock "$ROOT_DIR/script/perf_release.sh" "$run" "${labels[@]}"
 fi
 
 run="$1" base="$2" candidate="$3"

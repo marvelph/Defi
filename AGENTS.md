@@ -311,13 +311,13 @@ iterating on desktop tests, so the user keeps their desktop. It queues on its ow
 desktop reservation. It complements `verify.sh desktop`, which remains the certifying lane. See
 `CONTRIBUTING.md` for its limits.
 
-Keep the VM at its bare minimum, because its disk image never shrinks on the host. Copy only what a run
-needs, under `~/defi-e2e` in the guest. Never install tools there (Homebrew packages, Command Line Tools,
-browsers): tests use the host's Xcode through the shared folder, and `vm_start` points the guest's
-developer tools (including `/usr/bin/python3`) at it. Never remove `/opt/homebrew/bin/tart-guest-agent`,
-which `tart exec` needs. Each `vm_start` deletes everything else in the guest home,
-clears its caches, and keeps macOS from staging updates in the guest. Scripts that keep their own guest
-folder must add it to the list `vm_start` keeps.
+Each VM session boots a throwaway clone, `defi-e2e-session`, and deletes it on exit, so nothing a
+session writes in the guest survives it. Do manual guest work in `script/vm.sh shell [CMD]`: never
+`tart run defi-e2e` itself, which writes to the image every session clones. Only
+`script/vm.sh prepare` changes the image; it keeps it at its bare minimum, points the guest's developer
+tools (including `/usr/bin/python3`) at the host's Xcode in the shared folder, and keeps macOS from
+staging updates. Never install tools in the image (Homebrew packages, Command Line Tools, browsers), and
+never remove `/opt/homebrew/bin/tart-guest-agent`, which `tart exec` needs.
 
 Use a separate worktree per concurrent code writer. Prepared bundles and results
 live under the ignored `dist/verification/`; source drift invalidates a run.

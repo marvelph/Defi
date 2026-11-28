@@ -189,24 +189,24 @@ not replace `verify.sh desktop`.
 ```sh
 tart clone ghcr.io/cirruslabs/macos-golden-gate-base:latest defi-e2e
 tart set defi-e2e --cpu 4 --memory 4096
+script/vm.sh prepare
 script/test_vm.sh                                # or DesktopE2ETests/<test>
 ```
 
-Plan for about 40 GB of disk and 4 GB of memory while it runs. Each run deletes
-everything in the guest home except `~/defi-e2e` and `~/defi-perf`, clears guest
-caches, and turns off guest macOS updates, so the image stays near its minimum. Runs queue on a
-per-VM lock, and `DEFI_VM_SECOND_DISPLAY=1` adds a virtual second display for
-the two-display tests.
+Plan for about 40 GB of disk and 4 GB of memory while it runs. `vm.sh prepare`
+strips the image to its minimum, turns off guest macOS updates, and disables
+guest services Defi never touches, such as Siri, iCloud, and Shortcuts. Each run
+then boots an APFS clone of the image and deletes it afterwards, so runs never
+grow the image. Runs queue on a per-VM lock, and `DEFI_VM_SECOND_DISPLAY=1` adds
+a virtual second display for the two-display tests.
 
 <details>
 <summary>VM details and limits</summary>
 
-The script restarts a VM left running and always stops it at the end, which
-frees its memory. If a run is killed outright, use `tart stop defi-e2e`. The VM
-runs with `--no-audio`, so alert sounds from test shortcuts stay off your
-speakers; pass it too when you start the VM by hand. From the second boot on,
-the script disables guest services Defi never touches, such as Siri, iCloud, and
-Shortcuts. It also clears the image's boot banner.
+The script replaces a clone left by an earlier run and always stops and deletes
+its own at the end, which frees its memory and disk. If a run is killed
+outright, use `tart delete defi-e2e-session`. The VM runs with `--no-audio`, so
+alert sounds from test shortcuts stay off your speakers.
 
 The `vm-daemon` lane runs the real `defi-daemon` on ClampFixture windows and
 drags them through the HID tap. That daemon tiles every window on the display,
@@ -368,6 +368,7 @@ stanza, remove `com.apple.quarantine` in `postflight`, and zap:
 | `verify.sh` | Local preparation or exclusive desktop verification, with recorded results. |
 | `test_desktop.sh` | Stop Defi, run desktop tests, and restore the app. |
 | `test_vm.sh` | Run desktop tests in the `defi-e2e` Tart VM. |
+| `vm.sh` | `prepare` cleans and tunes the `defi-e2e` image that each VM run clones; `shell [CMD]` opens a guest shell in a throwaway clone. |
 | `desktop_lock.sh` | Reserve the desktop across concurrent and nested commands. |
 | `desktop_session.sh` | Checkpoint and restore session stores under the desktop reservation. |
 | `check_signing.sh` | Compare certificates and designated requirements without changing anything. |

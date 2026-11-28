@@ -8,9 +8,8 @@
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
-VM="${DEFI_VM:-defi-e2e}"
-# shellcheck source=script/vm_session.sh
-source "$ROOT_DIR/script/vm_session.sh"
+# shellcheck source=script/vm.sh
+source "$ROOT_DIR/script/vm.sh"
 
 OUT="$1"
 shift
@@ -28,8 +27,7 @@ if [[ -z "${DEFI_VM_LOCKED:-}" ]]; then
     clang -fobjc-arc -w -framework Foundation -framework AppKit -framework CoreGraphics \
       Tests/Fixtures/VirtualDisplayFixture.m -o .build/glitch/DefiVirtualDisplay
   fi
-  export DEFI_VM_LOCKED=1
-  exec lockf -k "$HOME/.tart/$VM.lock" "$ROOT_DIR/script/glitch_vm.sh" "$OUT" "${BUNDLES[@]}" -- ${BENCH_ARGS[@]+"${BENCH_ARGS[@]}"}
+  vm_lock "$ROOT_DIR/script/glitch_vm.sh" "$OUT" "${BUNDLES[@]}" -- ${BENCH_ARGS[@]+"${BENCH_ARGS[@]}"}
 fi
 
 # DEFI_VM_RUNNING=1: reuse a guest booted under a lock this shell's parent already holds.
@@ -48,10 +46,9 @@ cleanup() {
   vm "if [ -f ~/.glitch-config.orig ]; then mv ~/.glitch-config.orig ~/.config/defi/config.toml; elif [ -f ~/.glitch-config-created ]; then rm -f ~/.config/defi/config.toml; fi; rm -f ~/.glitch-config-created; rm -rf $G; sync" || true
   # The guest's installed daemon runs again if it ran before the bench.
   vm "[ ! -f ~/.glitch-daemon-was-running ] || { rm -f ~/.glitch-daemon-was-running; sudo -n launchctl asuser 501 sudo -n -u admin ~/Applications/Defi.app/Contents/MacOS/defi service start >/dev/null 2>&1; }; true" || true
-  [[ "${DEFI_VM_RUNNING:-0}" == 1 ]] || { sleep 3; tart stop "$VM" >/dev/null 2>&1 || true; }
+  [[ "${DEFI_VM_RUNNING:-0}" == 1 ]] || { sleep 3; vm_stop; }
 }
-# DEFI_GLITCH_KEEP=1 leaves the guest prepared for manual experiments; run again without it to clean.
-[[ "${DEFI_GLITCH_KEEP:-0}" == 1 ]] || trap cleanup EXIT
+trap cleanup EXIT
 
 vm "[ -f ~/.glitch-daemon-was-running ] || ! pgrep -x defi-daemon >/dev/null || touch ~/.glitch-daemon-was-running; pkill -x defi-daemon; [ ! -x ~/Applications/Defi.app/Contents/MacOS/defi ] || ~/Applications/Defi.app/Contents/MacOS/defi service stop >/dev/null 2>&1; rm -rf $G; mkdir -p $G/tools ~/.config/defi; [ -f ~/.glitch-config.orig ] || [ ! -f ~/.config/defi/config.toml ] || cp ~/.config/defi/config.toml ~/.glitch-config.orig; true"
 # A config without its backup is never overwritten: cleanup would then delete it.
